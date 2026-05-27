@@ -380,6 +380,7 @@ private fun AppRow(
                     )
             ) {
                 AppIcon(
+                    packageName = app.packageName,
                     drawable = app.icon,
                     modifier = Modifier.fillMaxSize()
                 )

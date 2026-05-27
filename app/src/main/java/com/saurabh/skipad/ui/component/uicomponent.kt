@@ -1,6 +1,8 @@
 package com.saurabh.skipad.ui.component
 
+import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
+import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -134,6 +137,7 @@ fun AppSelectionBottomSheet(
                     isLoading -> {
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     }
+
                     filtered.isEmpty() -> {
                         Text(
                             text = "No apps found",
@@ -142,6 +146,7 @@ fun AppSelectionBottomSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
                     else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
@@ -150,7 +155,8 @@ fun AppSelectionBottomSheet(
                         ) {
                             items(
                                 items = filtered,
-                                key = { it.packageName }
+                                key = { it.packageName },
+                                contentType = { "app_item" }
                             ) { app ->
                                 AppCheckboxItem(
                                     app = app,
@@ -214,6 +220,7 @@ private fun AppCheckboxItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AppIcon(
+                packageName = app.packageName,
                 drawable = app.icon,
                 modifier = Modifier
                     .size(48.dp)
@@ -253,16 +260,49 @@ enum class AppFilter(val label: String) {
 
 // ── Drawable → Compose painter without Coil dependency ──
 @Composable
-fun AppIcon(drawable: Drawable?, modifier: Modifier = Modifier) {
-    if (drawable != null) {
-        val bitmap = remember(drawable) { drawable.toBitmap().asImageBitmap() }
-        Image(bitmap = bitmap, contentDescription = null, modifier = modifier)
+fun AppIcon(
+    packageName: String,
+    drawable: Drawable?,
+    modifier: Modifier = Modifier
+) {
+    val bitmap = remember(packageName) {
+        AppIconMemoryCache.cache[packageName]
+            ?: drawable?.toBitmap(
+                config = Bitmap.Config.ARGB_8888
+            )?.also {
+                AppIconMemoryCache.cache.put(packageName, it)
+            }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = modifier,
+            alignment = Alignment.Center,
+            contentScale = ContentScale.Crop
+        )
     } else {
         Box(
-            modifier = modifier.background(
-                MaterialTheme.colorScheme.surfaceVariant,
-                RoundedCornerShape(12.dp)
-            )
+            modifier = modifier
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant,
+                    RoundedCornerShape(12.dp)
+                )
         )
+    }
+}
+
+object AppIconMemoryCache {
+    private const val MAX_CACHE_SIZE = 20 * 1024 * 1024
+
+    val cache = object : LruCache<String, Bitmap>(MAX_CACHE_SIZE) {
+
+        override fun sizeOf(
+            key: String,
+            value: Bitmap
+        ): Int {
+            return value.byteCount
+        }
     }
 }
