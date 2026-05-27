@@ -3,6 +3,7 @@ package com.saurabh.skipad.screens
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,11 +53,11 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                 title = {
                     Column {
                         Text(
-                            text = "Network Control",
+                            text = "Focus",
                             style = MaterialTheme.typography.titleLarge
                         )
                         Text(
-                            text = "App-level ad blocking",
+                            text = "Distraction-free browsing",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -101,7 +102,7 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Restricted apps",
+                                text = "Focused apps",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
@@ -246,7 +247,7 @@ private fun StatusCard(
                 }
                 Column {
                     Text(
-                        text = "Service status",
+                        text = "Focus status",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 0.5.sp
@@ -266,7 +267,7 @@ private fun StatusCard(
             ) {
                 StatusPill(
                     icon = if (isActive) Icons.Outlined.WifiOff else Icons.Outlined.Wifi,
-                    label = if (isActive) "DNS blocking on" else "DNS blocking off",
+                    label = if (isActive) "Focus mode on" else "Focus mode off",
                     active = isActive
                 )
                 StatusPill(
@@ -355,7 +356,7 @@ private fun AppRow(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = bg,
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor)
+        border = BorderStroke(0.5.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
@@ -396,7 +397,7 @@ private fun AppRow(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = app.packageName,
+                    text = if (isActive) "Tap Open to launch in focus mode" else app.packageName,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -413,7 +414,7 @@ private fun AppRow(
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                border = androidx.compose.foundation.BorderStroke(
+                border = BorderStroke(
                     0.5.dp,
                     MaterialTheme.colorScheme.outline
                 )

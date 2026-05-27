@@ -10,7 +10,10 @@ import com.saurabh.skipad.screens.MainScreen
 import com.saurabh.skipad.screens.SplashScreen
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    isDarkMode: Boolean,
+    onThemeToggle: (Boolean) -> Unit
+) {
 
     val navController = rememberNavController()
 
@@ -25,7 +28,7 @@ fun AppNavigation() {
             }
         }
         composable(ScreenRoute.Main.route) {
-            MainScreen(navController)
+            MainScreen(isDarkMode, onThemeToggle)
         }
     }
 }

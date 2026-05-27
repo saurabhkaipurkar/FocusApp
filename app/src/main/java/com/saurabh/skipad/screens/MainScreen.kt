@@ -57,7 +57,10 @@ data class BottomNavItem(
 )
 
 @Composable
-fun MainScreen(rootNavController: NavHostController) {
+fun MainScreen(
+    isDarkMode: Boolean,
+    onThemeToggle: (Boolean) -> Unit
+) {
 
     val navController = rememberNavController()
 
@@ -80,7 +83,7 @@ fun MainScreen(rootNavController: NavHostController) {
                 DashboardScreen()
             }
             composable(ScreenRoute.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(isDarkMode, onThemeToggle)
             }
         }
     }

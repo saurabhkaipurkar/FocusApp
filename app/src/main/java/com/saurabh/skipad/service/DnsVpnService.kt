@@ -96,8 +96,8 @@ class DnsVpnService : VpnService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Ad Blocking Active")
-            .setContentText("DNS requests are being filtered")
+            .setContentTitle("Focus Mode Active")
+            .setContentText("Running for selected app")
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
