@@ -1,26 +1,28 @@
 package com.saurabh.skipad.screens
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.saurabh.skipad.BuildConfig
+import com.saurabh.skipad.R
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun SplashScreen(onSplashFinished: () -> Unit) {
@@ -51,15 +53,15 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
         ring1Alpha.animateTo(0.7f, animationSpec = tween(500))
         ring1Scale.animateTo(1f, animationSpec = tween(600, easing = EaseOut))
 
-        delay(100)
+        delay(100.milliseconds)
         ring2Alpha.animateTo(0.6f, animationSpec = tween(500))
         ring2Scale.animateTo(1f, animationSpec = tween(600, easing = EaseOut))
 
-        delay(100)
+        delay(100.milliseconds)
         ring3Alpha.animateTo(0.5f, animationSpec = tween(500))
         ring3Scale.animateTo(1f, animationSpec = tween(600, easing = EaseOut))
 
-        delay(800)
+        delay(800.milliseconds)
 
         // Fade everything out
         contentAlpha.animateTo(0f, animationSpec = tween(350))
@@ -105,19 +107,12 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(22.dp)
-                    )
-                    .border(
-                        width = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        shape = RoundedCornerShape(22.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Security,
+                Image(
+                    painter = painterResource(id = R.drawable.app_logo),
                     contentDescription = null,
-                    modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
 

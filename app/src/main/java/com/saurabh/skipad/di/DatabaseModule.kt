@@ -26,6 +26,7 @@ object DatabaseModule {
     }
 
     @Provides
+    @Singleton
     fun provideAnalyticsDao(database: AppDatabase): AnalyticsDao {
         return database.analyticsDao()
     }

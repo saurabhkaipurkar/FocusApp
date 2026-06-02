@@ -124,7 +124,7 @@ fun NotificationPermissionHandler(
             },
             text = {
                 Text(
-                    "We send reminders for membership expiry and trial follow-ups."
+                    "Please allow notifications to receive ads."
                 )
             },
             confirmButton = {

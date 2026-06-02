@@ -2,7 +2,6 @@ package com.saurabh.skipad.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.core.net.toUri
 import android.content.Context
 import android.content.Intent
@@ -16,12 +15,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.saurabh.skipad.BuildConfig
@@ -33,10 +33,6 @@ fun SettingsScreen(
     onThemeToggle: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
-
-    // ── Local prefs (in-memory; swap with DataStore if persistence needed) ──
-    var notifyStart by remember { mutableStateOf(true) }
-    var notifyEnd by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -52,10 +48,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp,
-                top = 8.dp, bottom = 40.dp
-            ),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
 
@@ -65,61 +58,9 @@ fun SettingsScreen(
                     ToggleRow(
                         icon = Icons.Outlined.DarkMode,
                         title = "Dark mode",
-                        subtitle = "Follow system",
+                        subtitle = "Override system default",
                         checked = isDarkMode,
                         onCheckedChange = onThemeToggle
-                    )
-                }
-            }
-
-            // ── Notifications ──
-            item {
-                SettingsSection(label = "Notifications") {
-                    ToggleRow(
-                        icon = Icons.Outlined.Notifications,
-                        title = "Focus started",
-                        subtitle = "Notify when focus mode begins",
-                        checked = notifyStart,
-                        onCheckedChange = { notifyStart = it }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 64.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
-                    ToggleRow(
-                        icon = Icons.Outlined.NotificationsOff,
-                        title = "Focus ended",
-                        subtitle = "Notify when session stops",
-                        checked = notifyEnd,
-                        onCheckedChange = { notifyEnd = it }
-                    )
-                }
-            }
-
-            // ── Support ──
-            item {
-                SettingsSection(label = "Support") {
-                    ActionRow(
-                        icon = Icons.Outlined.Star,
-                        title = "Rate the app",
-                        subtitle = "Enjoying Focus? Leave a review",
-                        onClick = {
-                            context.openUrl("https://play.google.com/store/apps/details?id=${context.packageName}")
-                        }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 64.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
-                    ActionRow(
-                        icon = Icons.Outlined.ChatBubbleOutline,
-                        title = "Send feedback",
-                        subtitle = "Report a bug or suggest a feature",
-                        onClick = {
-                            context.openUrl("mailto:your@email.com?subject=Focus App Feedback")
-                        }
                     )
                 }
             }
@@ -130,8 +71,8 @@ fun SettingsScreen(
                     InfoRow(
                         icon = Icons.Outlined.Info,
                         title = "App version",
-                        subtitle = "What's new in this version",
-                        badge = BuildConfig.VERSION_NAME
+                        subtitle = "Focus — open source",
+                        badge = "v${BuildConfig.VERSION_NAME}"
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 64.dp),
@@ -141,9 +82,8 @@ fun SettingsScreen(
                     ActionRow(
                         icon = Icons.Outlined.PrivacyTip,
                         title = "Privacy policy",
-                        onClick = {
-                            context.openUrl("https://yoursite.com/privacy")
-                        }
+                        subtitle = "How we handle your data",
+                        onClick = { context.openUrl("https://saurabhkaipurkar.github.io/FocusApp/") }
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 64.dp),
@@ -153,9 +93,19 @@ fun SettingsScreen(
                     ActionRow(
                         icon = Icons.AutoMirrored.Outlined.Article,
                         title = "Terms of use",
-                        onClick = {
-                            context.openUrl("https://yoursite.com/terms")
-                        }
+                        subtitle = "Rules for using this app",
+                        onClick = { context.openUrl("https://saurabhkaipurkar.github.io/FocusApp/terms.html") }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 64.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    ActionRow(
+                        icon = Icons.Outlined.Code,
+                        title = "Source code",
+                        subtitle = "View on GitHub",
+                        onClick = { context.openUrl("https://github.com/saurabhkaipurkar/FocusApp") }
                     )
                 }
             }
@@ -169,16 +119,12 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
             }
         }
     }
 }
-
-// ══════════════════════════════════════════════════════
-// SECTION WRAPPER
-// ══════════════════════════════════════════════════════
 
 @Composable
 private fun SettingsSection(
@@ -196,19 +142,12 @@ private fun SettingsSection(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(
-                0.5.dp,
-                MaterialTheme.colorScheme.outlineVariant
-            )
+            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Column { content() }
         }
     }
 }
-
-// ══════════════════════════════════════════════════════
-// ROW TYPES
-// ══════════════════════════════════════════════════════
 
 @Composable
 private fun ToggleRow(
@@ -241,11 +180,7 @@ private fun ToggleRow(
                 )
             }
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            modifier = Modifier.height(26.dp)
-        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -317,7 +252,6 @@ private fun InfoRow(
                 )
             }
         }
-        // Version badge
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
@@ -338,7 +272,6 @@ private fun InfoRow(
     }
 }
 
-// ── Shared icon box ──
 @Composable
 private fun RowIcon(icon: ImageVector) {
     Box(
@@ -346,11 +279,7 @@ private fun RowIcon(icon: ImageVector) {
             .size(36.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(
-                0.5.dp,
-                MaterialTheme.colorScheme.outlineVariant,
-                RoundedCornerShape(10.dp)
-            ),
+            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -362,7 +291,6 @@ private fun RowIcon(icon: ImageVector) {
     }
 }
 
-// ── URL helper ──
 private fun Context.openUrl(url: String) {
     try {
         startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
