@@ -19,6 +19,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -122,7 +124,7 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                             app = app,
                             isActive = uiState.activePackage == app.packageName,
                             onOpen = {
-                                val intent = viewModel.requestVpnFor(app.packageName)
+                                val intent = viewModel.requestVpnFor(app)
                                 if (intent != null) vpnPermissionLauncher.launch(intent)
                             }
                         )
@@ -194,7 +196,9 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
             allApps = uiState.allApps,
             isLoading = uiState.isLoadingApps,
             onToggle = { app, checked -> viewModel.toggleAppSelection(app, checked) },
-            onSelectAll = { viewModel.selectAllApps() },
+            onToggleAll = { select ->
+                if (select) viewModel.selectAllApps() else viewModel.unselectAllApps()
+            },
             onDone = { viewModel.confirmSelection() },
             onDismiss = { showBottomSheet = false }
         )
@@ -303,7 +307,7 @@ private fun StatusCard(
 
 @Composable
 private fun StatusPill(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     active: Boolean
 ) {
@@ -391,7 +395,7 @@ private fun AppRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = app.appName,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onBackground

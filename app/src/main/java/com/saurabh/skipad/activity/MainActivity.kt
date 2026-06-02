@@ -1,4 +1,4 @@
-package com.saurabh.skipad
+package com.saurabh.skipad.activity
 
 import android.Manifest
 import android.content.Intent
@@ -26,9 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import com.saurabh.skipad.extension.findActivity
 import com.saurabh.skipad.navigation.AppNavigation
 import com.saurabh.skipad.ui.theme.SkipAdTheme

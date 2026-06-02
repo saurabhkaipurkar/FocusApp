@@ -1,11 +1,6 @@
 package com.saurabh.skipad.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,8 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,7 +35,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -66,6 +60,7 @@ fun MainScreen(
 
     val items = listOf(
         BottomNavItem("Home", Icons.Default.Home, ScreenRoute.Dashboard.route),
+        BottomNavItem("Analytics", Icons.Default.Analytics, ScreenRoute.Analytics.route),
         BottomNavItem("Settings", Icons.Default.Settings, ScreenRoute.Settings.route)
     )
 
@@ -84,6 +79,9 @@ fun MainScreen(
             }
             composable(ScreenRoute.Settings.route) {
                 SettingsScreen(isDarkMode, onThemeToggle)
+            }
+            composable(ScreenRoute.Analytics.route) {
+                AnalyticsScreen()
             }
         }
     }

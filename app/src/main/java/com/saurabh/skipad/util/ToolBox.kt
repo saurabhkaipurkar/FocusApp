@@ -3,13 +3,9 @@ package com.saurabh.skipad.util
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
 import android.widget.Toast
 import com.saurabh.skipad.model.InstalledAppGeneral
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
 class ToolBox @Inject constructor(

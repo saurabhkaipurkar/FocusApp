@@ -14,7 +14,6 @@ import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
 
 class DnsVpnService : VpnService() {
@@ -24,7 +23,7 @@ class DnsVpnService : VpnService() {
         const val ACTION_STOP = "ACTION_STOP_VPN"
         const val EXTRA_TARGET_APP = "TARGET_APP"
         private const val NOTIFICATION_ID = 1
-        private const val CHANNEL_ID = "vpn_dns_block"
+        private const val CHANNEL_ID = "vpn_focus"
         private const val BUFFER_SIZE = 32 * 1024
 
         private val _isRunning = MutableStateFlow(false)
@@ -63,6 +62,72 @@ class DnsVpnService : VpnService() {
         super.onDestroy()
     }
 
+    // ══════════════════════════════
+    // VPN SETUP
+    // ══════════════════════════════
+
+    private fun startVpnForApp(targetPackage: String) {
+        val pfd = try {
+            Builder()
+                .setSession("Focus Mode")
+                .addAddress("10.0.0.2", 32)
+                // ── IPv4 + IPv6 dono ka poora traffic intercept ──
+                .addRoute("0.0.0.0", 0)
+                .addRoute("::", 0)
+                // ── Sirf ye app VPN se jaayegi ──
+                .addAllowedApplication(targetPackage)
+                .establish()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            stopSelf(); return
+        } ?: run { stopSelf(); return }
+
+        vpnInterface = pfd
+        _isRunning.value = true
+        startPacketLoop(pfd)
+    }
+
+    private fun stopVpn() {
+        running = false
+        vpnThread?.interrupt()
+        vpnThread = null
+        try {
+            vpnInterface?.close()
+        } catch (_: IOException) {
+        }
+        vpnInterface = null
+        _isRunning.value = false
+    }
+
+    // ══════════════════════════════
+    // PACKET LOOP — FULL BLOCK
+    // ══════════════════════════════
+
+    private fun startPacketLoop(pfd: ParcelFileDescriptor) {
+        running = true
+        vpnThread = Thread({
+            val input = FileInputStream(pfd.fileDescriptor)
+            // ── FileOutputStream intentionally NOT opened ──
+            // Koi bhi packet output pe nahi likhte = incoming + outgoing dono block
+            val buffer = ByteArray(BUFFER_SIZE)
+            try {
+                while (running) {
+                    val length = input.read(buffer)
+                    // Packet read karo aur DROP — output pe kuch nahi likhna
+                    if (length <= 0) continue
+                    // ── ALL traffic silently dropped ──
+                }
+            } catch (_: IOException) {
+            }
+        }, "vpn-block-thread").also { it.isDaemon = true }
+        vpnThread?.start()
+    }
+
+    // ══════════════════════════════
+    // FOREGROUND + NOTIFICATION
+    // ══════════════════════════════
+
+    @SuppressLint("ForegroundServiceType")
     private fun startForegroundCompat() {
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -79,10 +144,10 @@ class DnsVpnService : VpnService() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Ad Blocker VPN",
+            "Focus Mode",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Active while ad blocking is running"
+            description = "Active while focus mode is running"
             setShowBadge(false)
         }
         getSystemService(NotificationManager::class.java)
@@ -97,67 +162,12 @@ class DnsVpnService : VpnService() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Focus Mode Active")
-            .setContentText("Running for selected app")
+            .setContentText("Internet access restricted for selected app")
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setOngoing(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .addAction(android.R.drawable.ic_delete, "Stop", stopPendingIntent)
             .build()
-    }
-
-    private fun startVpnForApp(targetPackage: String) {
-        val pfd = try {
-            Builder()
-                .setSession("DNS Ad Block")
-                .addAddress("10.0.0.2", 32)
-                .addRoute("0.0.0.0", 0)
-                .addAllowedApplication(targetPackage)
-                .establish()
-        } catch (e: Exception) {
-            stopSelf(); return
-        } ?: run { stopSelf(); return }
-
-        vpnInterface = pfd
-        _isRunning.value = true   // ← UI ko batao: ON
-        startPacketLoop(pfd)
-    }
-
-    private fun stopVpn() {
-        running = false
-        vpnThread?.interrupt()
-        vpnThread = null
-        try {
-            vpnInterface?.close()
-        } catch (_: IOException) {
-        }
-        vpnInterface = null
-        _isRunning.value = false  // ← UI ko batao: OFF
-    }
-
-    private fun startPacketLoop(pfd: ParcelFileDescriptor) {
-        running = true
-        vpnThread = Thread({
-            val input = FileInputStream(pfd.fileDescriptor)
-            val output = FileOutputStream(pfd.fileDescriptor)
-            val buffer = ByteArray(BUFFER_SIZE)
-            try {
-                while (running) {
-                    val length = input.read(buffer)
-                    if (length <= 0) continue
-                    if (isUdpPort53(buffer, length)) continue
-                    output.write(buffer, 0, length)
-                }
-            } catch (_: IOException) {
-            }
-        }, "vpn-packet-thread").also { it.isDaemon = true }
-        vpnThread?.start()
-    }
-
-    private fun isUdpPort53(packet: ByteArray, length: Int): Boolean {
-        if (length < 28) return false
-        if (packet[9].toInt() and 0xFF != 17) return false
-        val destPort = ((packet[22].toInt() and 0xFF) shl 8) or (packet[23].toInt() and 0xFF)
-        return destPort == 53
     }
 }

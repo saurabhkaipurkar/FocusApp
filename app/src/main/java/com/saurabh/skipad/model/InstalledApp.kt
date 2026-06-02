@@ -7,7 +7,7 @@ data class InstalledAppGeneral(
     val appName: String,
     val packageName: String,
     val icon: Drawable?,
-    var isSelected: Boolean = false
+    val isSelected: Boolean = false
 )
 
 data class InstalledApp(
@@ -15,7 +15,7 @@ data class InstalledApp(
     val appName: String,
     val packageName: String,
     val icon: ByteArray?,
-    var isSelected: Boolean = false
+    val isSelected: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

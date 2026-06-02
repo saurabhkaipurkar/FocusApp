@@ -20,10 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.saurabh.skipad.model.InstalledAppGeneral
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +34,7 @@ fun AppSelectionBottomSheet(
     allApps: List<InstalledAppGeneral>,
     isLoading: Boolean,
     onToggle: (InstalledAppGeneral, Boolean) -> Unit,
-    onSelectAll: () -> Unit,
+    onToggleAll: (Boolean) -> Unit,
     onDone: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -54,6 +57,7 @@ fun AppSelectionBottomSheet(
     }
 
     val selectedCount = allApps.count { it.isSelected }
+    val isAllSelected = allApps.isNotEmpty() && allApps.all { it.isSelected }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -177,10 +181,10 @@ fun AppSelectionBottomSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
-                    onClick = onSelectAll,
+                    onClick = { onToggleAll(!isAllSelected) },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Select All")
+                    Text(if (isAllSelected) "Unselect All" else "Select All")
                 }
                 Button(
                     onClick = {
@@ -258,38 +262,54 @@ enum class AppFilter(val label: String) {
     SELECTED("Selected")
 }
 
-// ── Drawable → Compose painter without Coil dependency ──
+// ── Drawable → Compose painter with Manual Caching ──
 @Composable
 fun AppIcon(
     packageName: String,
     drawable: Drawable?,
     modifier: Modifier = Modifier
 ) {
-    val bitmap = remember(packageName) {
-        AppIconMemoryCache.cache[packageName]
-            ?: drawable?.toBitmap(
-                config = Bitmap.Config.ARGB_8888
-            )?.also {
-                AppIconMemoryCache.cache.put(packageName, it)
-            }
+    var bitmap by remember(packageName) { 
+        mutableStateOf<Bitmap?>(AppIconMemoryCache.cache[packageName]) 
     }
 
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = null,
-            modifier = modifier,
-            alignment = Alignment.Center,
-            contentScale = ContentScale.Crop
-        )
-    } else {
-        Box(
-            modifier = modifier
-                .background(
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    RoundedCornerShape(12.dp)
-                )
-        )
+    if (bitmap == null) {
+        val context = LocalContext.current
+        LaunchedEffect(packageName) {
+            val decoded = withContext(Dispatchers.Default) {
+                try {
+                    val icon = drawable ?: context.packageManager.getApplicationIcon(packageName)
+                    icon.toBitmap(width = 128, height = 128, config = Bitmap.Config.ARGB_8888)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (decoded != null) {
+                AppIconMemoryCache.cache.put(packageName, decoded)
+                bitmap = decoded
+            }
+        }
+    }
+
+    Box(modifier = modifier) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                alignment = Alignment.Center,
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(12.dp)
+                    )
+            )
+        }
     }
 }
 
@@ -297,11 +317,7 @@ object AppIconMemoryCache {
     private const val MAX_CACHE_SIZE = 20 * 1024 * 1024
 
     val cache = object : LruCache<String, Bitmap>(MAX_CACHE_SIZE) {
-
-        override fun sizeOf(
-            key: String,
-            value: Bitmap
-        ): Int {
+        override fun sizeOf(key: String, value: Bitmap): Int {
             return value.byteCount
         }
     }

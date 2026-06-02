@@ -5,7 +5,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.saurabh.skipad.route.ScreenRoute
-import com.saurabh.skipad.screens.DashboardScreen
 import com.saurabh.skipad.screens.MainScreen
 import com.saurabh.skipad.screens.SplashScreen
 
