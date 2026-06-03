@@ -112,7 +112,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.app_logo),
-                    contentDescription = null,
+                    contentDescription = null
                 )
             }
 
