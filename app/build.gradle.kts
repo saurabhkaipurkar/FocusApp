@@ -24,19 +24,34 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(property("RELEASE_STORE_FILE") as String)
+            storePassword = property("RELEASE_STORE_PASSWORD") as String
+            keyAlias = property("RELEASE_KEY_ALIAS") as String
+            keyPassword = property("RELEASE_KEY_PASSWORD") as String
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            isCrunchPngs = false  // Disabling PNG crunching to avoid AAPT2 timeouts with large resources like app_logo.png (14.5MB)
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     buildFeatures {
         compose = true
         buildConfig = true
