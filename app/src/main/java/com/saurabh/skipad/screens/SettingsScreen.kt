@@ -83,7 +83,7 @@ fun SettingsScreen(
                         icon = Icons.Outlined.PrivacyTip,
                         title = "Privacy policy",
                         subtitle = "How we handle your data",
-                        onClick = { context.openUrl("https://saurabhkaipurkar.github.io/FocusApp/") }
+                        onClick = { context.openUrl("https://saurabhkaipurkar.github.io/FocusApp/privacy.html") }
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 64.dp),
