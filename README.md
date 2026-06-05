@@ -15,10 +15,13 @@ Focus is an Android productivity application that helps users stay distraction-f
 ## Screenshots
 
 <p align="center">
-  <img src="assets/dashboard.jpeg" width="220"/>
-  <img src="assets/app_selection.jpeg" width="220"/>
-  <img src="assets/analytics.jpeg" width="220"/>
-  <img src="assets/settings.jpeg" width="220"/>
+  <img src="assets/dashboard.jpeg" width="260"/>
+  <img src="assets/app_selection.jpeg" width="260"/>
+</p>
+
+<p align="center">
+  <img src="assets/analytics.jpeg" width="260"/>
+  <img src="assets/settings.jpeg" width="260"/>
 </p>
 
 ## Tech Stack
