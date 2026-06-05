@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.saurabh.skipad"
+    namespace = "com.saurabh.focusapp"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.saurabh.skipad"
+        applicationId = "com.saurabh.focusapp"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
