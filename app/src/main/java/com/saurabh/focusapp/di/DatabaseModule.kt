@@ -22,7 +22,9 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "focus_app_db"
-        ).build()
+        )
+            .fallbackToDestructiveMigration(false)
+            .build()
     }
 
     @Provides

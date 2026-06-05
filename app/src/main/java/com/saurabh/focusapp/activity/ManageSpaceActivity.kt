@@ -50,14 +50,18 @@ class ManageSpaceActivity : ComponentActivity() {
             SkipAdTheme {
                 ManageSpaceScreen(
                     onBack = { finish() },
-                    onClearCache = { 
+                    onClearCache = {
                         clearCache()
                         Toast.makeText(this, "Cache cleared", Toast.LENGTH_SHORT).show()
                     },
                     onResetSettings = {
                         preferenceManager.saveSelectedApps(emptySet())
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@ManageSpaceActivity, "Settings reset", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                this@ManageSpaceActivity,
+                                "Settings reset",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                 )
@@ -171,7 +175,7 @@ fun ManageSpaceScreen(
             )
 
             Spacer(Modifier.weight(1f))
-            
+
             Text(
                 text = "Version 1.0.0",
                 modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -211,7 +215,11 @@ fun StorageItem(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleMedium)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Text(
                     text = size,
@@ -220,9 +228,9 @@ fun StorageItem(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            
+
             Spacer(Modifier.height(16.dp))
-            
+
             Button(
                 onClick = onAction,
                 modifier = Modifier.fillMaxWidth(),
