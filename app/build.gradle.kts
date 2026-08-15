@@ -8,16 +8,12 @@ plugins {
 
 android {
     namespace = "com.saurabh.focusapp"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.saurabh.focusapp"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
 
@@ -38,12 +34,11 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             isDebuggable = false
-            isCrunchPngs = false  // Disabling PNG crunching to avoid AAPT2 timeouts with large resources like app_logo.png (14.5MB)
-            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

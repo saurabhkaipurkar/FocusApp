@@ -1,5 +1,6 @@
 package com.saurabh.focusapp.screens
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,7 +27,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +48,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.saurabh.focusapp.route.ScreenRoute
 
+/**
+ * Optimization: Marked as @Immutable to inform the Compose compiler that 
+ * the properties of this class will not change after construction. 
+ * This enables the compiler to skip recompositions of composables using this 
+ * class if the instance remains the same.
+ */
+@Immutable
 data class BottomNavItem(
     val label: String,
     val icon: ImageVector,
@@ -55,17 +66,30 @@ fun MainScreen(
     isDarkMode: Boolean,
     onThemeToggle: (Boolean) -> Unit
 ) {
+    // Performance Metric: Log recompositions to track if optimizations are working
+    SideEffect {
+        Log.d("MainScreen", "MainScreen recomposed (isDarkMode: $isDarkMode)")
+    }
 
     val navController = rememberNavController()
 
-    val items = listOf(
-        BottomNavItem("Home", Icons.Default.Home, ScreenRoute.Dashboard.route),
-        BottomNavItem("Analytics", Icons.Default.Analytics, ScreenRoute.Analytics.route),
-        BottomNavItem("Settings", Icons.Default.Settings, ScreenRoute.Settings.route)
-    )
+    // Optimization: Remember the items list. Recreating the list on every 
+    // recomposition (e.g., when isDarkMode changes) would prevent 
+    // CustomBottomNavigation from skipping recomposition.
+    val items = remember {
+        listOf(
+            BottomNavItem("Home", Icons.Default.Home, ScreenRoute.Dashboard.route),
+            BottomNavItem("Analytics", Icons.Default.Analytics, ScreenRoute.Analytics.route),
+            BottomNavItem("Settings", Icons.Default.Settings, ScreenRoute.Settings.route)
+        )
+    }
 
     Scaffold(
-        bottomBar = { CustomBottomNavigation(navController, items) }
+        bottomBar = { 
+            // Optimization: Scaffold calls this lambda. By passing remembered 
+            // stable items, we help CustomBottomNavigation skip unnecessary work.
+            CustomBottomNavigation(navController, items) 
+        }
     ) { paddingValues ->
         NavHost(
             navController = navController,
@@ -95,6 +119,11 @@ fun CustomBottomNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    // Optimization: Pre-calculate the divider color based on the theme to 
+    // avoid creating new Color objects and derivations inside the Row/loop.
+    val outlineColor = MaterialTheme.colorScheme.outline
+    val dividerColor = remember(outlineColor) { outlineColor.copy(alpha = 0.5f) }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -107,11 +136,10 @@ fun CustomBottomNavigation(
         ) {
             HorizontalDivider(
                 thickness = 0.5.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                color = dividerColor
             )
             Row(
-                modifier = Modifier
-                    .fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -119,10 +147,15 @@ fun CustomBottomNavigation(
                     val isSelected =
                         currentDestination?.hierarchy?.any { it.route == item.route } == true
 
-                    CustomBottomNavItem(
-                        item = item,
-                        isSelected = isSelected,
-                        onClick = {
+                    /**
+                     * Optimization: Remember the onClick lambda for each route. 
+                     * If we pass a raw lambda to CustomBottomNavItem, it would be 
+                     * considered "unstable" and trigger a recomposition of the 
+                     * item every time the bottom bar recomposes, even if the 
+                     * selection state didn't change.
+                     */
+                    val onClick = remember(item.route, navController) {
+                        {
                             navController.navigate(item.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
@@ -131,6 +164,12 @@ fun CustomBottomNavigation(
                                 restoreState = true
                             }
                         }
+                    }
+
+                    CustomBottomNavItem(
+                        item = item,
+                        isSelected = isSelected,
+                        onClick = onClick
                     )
                 }
             }
@@ -144,9 +183,12 @@ fun CustomBottomNavItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val background =
-        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent
-    val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray
+    // Optimization: Derived colors are remembered to avoid redundant 'copy' calls
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val background = remember(isSelected, primaryColor) {
+        if (isSelected) primaryColor.copy(alpha = 0.1f) else Color.Transparent
+    }
+    val contentColor = if (isSelected) primaryColor else Color.Gray
 
     Box(
         modifier = Modifier

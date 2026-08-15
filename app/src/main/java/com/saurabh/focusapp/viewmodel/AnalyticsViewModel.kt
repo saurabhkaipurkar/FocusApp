@@ -1,5 +1,6 @@
 package com.saurabh.focusapp.viewmodel
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.saurabh.focusapp.data.db.AnalyticsDao
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.*
 import java.util.Calendar
 import javax.inject.Inject
 
+@Immutable
 data class AnalyticsUiState(
     val usageStats: List<AppUsageStats> = emptyList(),
     val recentSessions: List<UsageSession> = emptyList(),

@@ -17,8 +17,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.Immutable
 import javax.inject.Inject
 
+@Immutable
 data class VpnUiState(
     val isVpnActive: Boolean = false,
     val activePackage: String? = null,

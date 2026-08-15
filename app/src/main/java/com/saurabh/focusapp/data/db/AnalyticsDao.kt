@@ -1,5 +1,6 @@
 package com.saurabh.focusapp.data.db
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
@@ -35,6 +36,7 @@ interface AnalyticsDao {
     suspend fun clearAll()
 }
 
+@Immutable
 data class AppUsageStats(
     val packageName: String,
     val appName: String,

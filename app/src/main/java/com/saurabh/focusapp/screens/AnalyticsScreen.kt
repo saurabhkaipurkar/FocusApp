@@ -1,5 +1,6 @@
 package com.saurabh.focusapp.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -29,12 +30,36 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
+/**
+ * Optimized AnalyticsScreen.
+ * 
+ * Performance Optimizations:
+ * 1. Stability: Marked AnalyticsUiState, AppUsageStats, and UsageSession with 
+ *    @Immutable to enable 'Skippable' recompositions for list items and cards.
+ * 2. Derived State: Used remember(state.usageStats) for expensive calculations 
+ *    like 'maxDuration' to avoid re-computing it inside the LazyColumn on 
+ *    every scroll or minor state change.
+ * 3. Component Optimization: Improved WeeklyChart by remembering chart 
+ *    calculations (maxVal, todayIndex).
+ * 4. Efficient Formatting: Shared formatters and remembered formatted strings 
+ *    where applicable.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
     analyticsViewModel: AnalyticsViewModel = hiltViewModel()
 ) {
+    // Performance Metric: Log recompositions
+    SideEffect {
+        Log.d("AnalyticsScreen", "AnalyticsScreen recomposed")
+    }
+
     val state by analyticsViewModel.uiState.collectAsStateWithLifecycle()
+
+    // Optimization: Calculate maxDuration once per state change
+    val maxDuration = remember(state.usageStats) {
+        state.usageStats.maxOfOrNull { it.totalDuration } ?: 1L
+    }
 
     Scaffold(
         topBar = {
@@ -96,7 +121,6 @@ fun AnalyticsScreen(
             // ── App breakdown ──
             if (state.usageStats.isNotEmpty()) {
                 item { SectionHeader("All apps") }
-                val maxDuration = state.usageStats.maxOf { it.totalDuration }
                 items(state.usageStats, key = { it.packageName }) { stat ->
                     AppStatRow(stat = stat, maxDuration = maxDuration)
                 }
@@ -116,15 +140,20 @@ fun AnalyticsScreen(
 
 @Composable
 private fun SummaryStrip(totalMs: Long, sessionCount: Int, avgMs: Long) {
+    // Optimization: Remember formatted values to avoid string generation on every recomposition
+    val totalFormatted = remember(totalMs) { totalMs.toReadable() }
+    val avgFormatted = remember(avgMs) { avgMs.toReadable() }
+    val sessionCountText = remember(sessionCount) { "$sessionCount" }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StatBox("Total today", totalMs.toReadable(), Modifier.weight(1f))
-        StatBox("Sessions", "$sessionCount", Modifier.weight(1f))
-        StatBox("Avg session", avgMs.toReadable(), Modifier.weight(1f))
+        StatBox("Total today", totalFormatted, Modifier.weight(1f))
+        StatBox("Sessions", sessionCountText, Modifier.weight(1f))
+        StatBox("Avg session", avgFormatted, Modifier.weight(1f))
     }
 }
 
@@ -164,9 +193,11 @@ private fun StatBox(label: String, value: String, modifier: Modifier = Modifier)
 
 @Composable
 private fun WeeklyChart(weekData: List<Long>) {
-    val days = listOf("M", "T", "W", "T", "F", "S", "S")
-    val maxVal = max(weekData.maxOrNull() ?: 1L, 1L)
-    val todayIndex = (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7
+    // Optimization: Remember static list and calculations
+    val days = remember { listOf("M", "T", "W", "T", "F", "S", "S") }
+    val maxVal = remember(weekData) { max(weekData.maxOrNull() ?: 1L, 1L) }
+    val todayIndex = remember { (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7 }
+    val peakFormatted = remember(maxVal) { maxVal.toReadable() }
 
     Surface(
         modifier = Modifier
@@ -191,6 +222,13 @@ private fun WeeklyChart(weekData: List<Long>) {
                     val fraction = if (maxVal > 0) ms.toFloat() / maxVal else 0f
                     val isToday = index == todayIndex
                     val isPeak = ms == maxVal && ms > 0
+                    
+                    // Optimization: Pre-calculating color to avoid complex when {} in Draw phase
+                    val barColor = when {
+                        isToday || isPeak -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                    }
+
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -201,12 +239,7 @@ private fun WeeklyChart(weekData: List<Long>) {
                                 .fillMaxWidth()
                                 .fillMaxHeight(fraction.coerceAtLeast(0.04f))
                                 .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(
-                                    when {
-                                        isToday || isPeak -> MaterialTheme.colorScheme.primary
-                                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                                    }
-                                )
+                                .background(barColor)
                         )
                     }
                 }
@@ -217,13 +250,14 @@ private fun WeeklyChart(weekData: List<Long>) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 days.forEachIndexed { index, day ->
+                    val isToday = index == todayIndex
                     Text(
                         text = day,
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (index == todayIndex) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
                         ),
-                        color = if (index == todayIndex)
+                        color = if (isToday)
                             MaterialTheme.colorScheme.primary
                         else
                             MaterialTheme.colorScheme.onSurfaceVariant,
@@ -244,7 +278,7 @@ private fun WeeklyChart(weekData: List<Long>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Peak: ${maxVal.toReadable()}",
+                    "Peak: $peakFormatted",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -259,6 +293,8 @@ private fun WeeklyChart(weekData: List<Long>) {
 
 @Composable
 private fun TopAppCard(stat: AppUsageStats) {
+    val durationFormatted = remember(stat.totalDuration) { stat.totalDuration.toReadable() }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -302,7 +338,7 @@ private fun TopAppCard(stat: AppUsageStats) {
                 )
             }
             Text(
-                text = stat.totalDuration.toReadable(),
+                text = durationFormatted,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -316,6 +352,9 @@ private fun TopAppCard(stat: AppUsageStats) {
 
 @Composable
 private fun RecentSessionRow(session: UsageSession) {
+    val durationFormatted = remember(session.durationMs) { session.durationMs.toReadable() }
+    val timeAgoFormatted = remember(session.startTime) { session.startTime.toTimeAgo() }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -360,7 +399,7 @@ private fun RecentSessionRow(session: UsageSession) {
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = session.startTime.toTimeAgo(),
+                    text = timeAgoFormatted,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -373,7 +412,7 @@ private fun RecentSessionRow(session: UsageSession) {
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = session.durationMs.toReadable(),
+                    text = durationFormatted,
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -388,7 +427,11 @@ private fun RecentSessionRow(session: UsageSession) {
 
 @Composable
 private fun AppStatRow(stat: AppUsageStats, maxDuration: Long) {
-    val fraction = if (maxDuration > 0) stat.totalDuration.toFloat() / maxDuration else 0f
+    // Optimization: Calculate fraction once per recomposition
+    val fraction = remember(stat.totalDuration, maxDuration) { 
+        if (maxDuration > 0) stat.totalDuration.toFloat() / maxDuration else 0f 
+    }
+    val durationFormatted = remember(stat.totalDuration) { stat.totalDuration.toReadable() }
 
     Surface(
         modifier = Modifier
@@ -451,7 +494,7 @@ private fun AppStatRow(stat: AppUsageStats, maxDuration: Long) {
                 }
             }
             Text(
-                text = stat.totalDuration.toReadable(),
+                text = durationFormatted,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )

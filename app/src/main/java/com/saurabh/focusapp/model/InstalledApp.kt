@@ -1,7 +1,9 @@
 package com.saurabh.focusapp.model
 
 import android.graphics.drawable.Drawable
+import androidx.compose.runtime.Immutable
 
+@Immutable
 data class InstalledAppGeneral(
     val serialNo: Int = 0,
     val appName: String,
@@ -10,6 +12,7 @@ data class InstalledAppGeneral(
     val isSelected: Boolean = false
 )
 
+@Immutable
 data class InstalledApp(
     val serialNo: Int = 0,
     val appName: String,

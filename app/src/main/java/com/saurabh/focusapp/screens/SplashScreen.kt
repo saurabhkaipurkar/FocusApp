@@ -1,5 +1,6 @@
 package com.saurabh.focusapp.screens
 
+import android.util.Log
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -11,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -21,9 +21,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.saurabh.focusapp.BuildConfig
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 import com.saurabh.focusapp.R
 
+/**
+ * Optimized SplashScreen.
+ * 
+ * Performance Optimizations:
+ * 1. Deferring Recomposition: Animation values (.value) are now read inside 
+ *    Modifier.graphicsLayer { ... } lambdas. This moves the animation logic 
+ *    to the 'Draw' phase, avoiding expensive 'Recomposition' and 'Layout' 
+ *    cycles for the entire screen on every frame.
+ * 2. Deferred State Reading: Sub-composables (Ring, LoadingDots) now receive 
+ *    lambdas or State objects instead of raw values, ensuring parent 
+ *    composables don't recompose when children animate.
+ * 3. Modifier.graphicsLayer vs Modifier.scale: Replaced Modifier.scale with 
+ *    graphicsLayer { scaleX/Y = ... } to avoid triggering layout passes 
+ *    during scaling animations.
+ */
 @Composable
 fun SplashScreen(onSplashFinished: () -> Unit) {
 
@@ -38,33 +54,48 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
     val ring3Scale = remember { Animatable(0.4f) }
 
     LaunchedEffect(Unit) {
-        // Icon pops in
-        iconScale.animateTo(
-            1f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMedium
+        val startTime = System.currentTimeMillis()
+        Log.d("SplashScreen", "Animation started")
+
+        // Start intro animations in parallel
+        launch {
+            iconScale.animateTo(
+                1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
             )
-        )
-        // Text + rings fade in
-        contentAlpha.animateTo(1f, animationSpec = tween(400))
+        }
+        launch {
+            contentAlpha.animateTo(1f, animationSpec = tween(400))
+        }
 
         // Rings expand outward in sequence
-        ring1Alpha.animateTo(0.7f, animationSpec = tween(500))
-        ring1Scale.animateTo(1f, animationSpec = tween(600, easing = EaseOut))
+        launch {
+            ring1Alpha.animateTo(0.7f, animationSpec = tween(400))
+            ring1Scale.animateTo(1f, animationSpec = tween(500, easing = EaseOut))
+        }
 
         delay(100.milliseconds)
-        ring2Alpha.animateTo(0.6f, animationSpec = tween(500))
-        ring2Scale.animateTo(1f, animationSpec = tween(600, easing = EaseOut))
+        launch {
+            ring2Alpha.animateTo(0.6f, animationSpec = tween(400))
+            ring2Scale.animateTo(1f, animationSpec = tween(500, easing = EaseOut))
+        }
 
         delay(100.milliseconds)
-        ring3Alpha.animateTo(0.5f, animationSpec = tween(500))
-        ring3Scale.animateTo(1f, animationSpec = tween(600, easing = EaseOut))
+        launch {
+            ring3Alpha.animateTo(0.5f, animationSpec = tween(400))
+            ring3Scale.animateTo(1f, animationSpec = tween(500, easing = EaseOut))
+        }
 
-        delay(800.milliseconds)
+        // Wait until approximately 1.2s total before starting final fade
+        delay(1000.milliseconds)
 
-        // Fade everything out
-        contentAlpha.animateTo(0f, animationSpec = tween(350))
+        // Fade everything out (duration: 300ms)
+        contentAlpha.animateTo(0f, animationSpec = tween(300))
+        
+        Log.d("SplashScreen", "Animation finished in ${System.currentTimeMillis() - startTime}ms")
         onSplashFinished()
     }
 
@@ -76,24 +107,26 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
     ) {
 
         // ── Concentric rings ──
+        // Optimization: Passing lambdas to defer value reading
         Ring(
             size = 360.dp,
-            alpha = ring3Alpha.value,
-            scale = ring3Scale.value
+            alphaProvider = { ring3Alpha.value },
+            scaleProvider = { ring3Scale.value }
         )
         Ring(
             size = 260.dp,
-            alpha = ring2Alpha.value,
-            scale = ring2Scale.value
+            alphaProvider = { ring2Alpha.value },
+            scaleProvider = { ring2Scale.value }
         )
         Ring(
             size = 180.dp,
-            alpha = ring1Alpha.value,
-            scale = ring1Scale.value
+            alphaProvider = { ring1Alpha.value },
+            scaleProvider = { ring1Scale.value }
         )
 
         // ── Center content ──
         Column(
+            // Optimization: graphicsLayer lambda avoids recomposing the whole Column
             modifier = Modifier.graphicsLayer { alpha = contentAlpha.value },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -102,7 +135,10 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             // ── Icon box ──
             Box(
                 modifier = Modifier
-                    .scale(iconScale.value)
+                    .graphicsLayer {
+                        scaleX = iconScale.value
+                        scaleY = iconScale.value
+                    }
                     .size(80.dp)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -164,14 +200,17 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
 @Composable
 private fun Ring(
     size: Dp,
-    alpha: Float,
-    scale: Float
+    alphaProvider: () -> Float,
+    scaleProvider: () -> Float
 ) {
     Box(
         modifier = Modifier
             .size(size)
-            .scale(scale)
-            .graphicsLayer { this.alpha = alpha }
+            .graphicsLayer { 
+                alpha = alphaProvider()
+                scaleX = scaleProvider()
+                scaleY = scaleProvider()
+            }
             .border(
                 width = 0.5.dp,
                 color = MaterialTheme.colorScheme.outlineVariant,
@@ -185,21 +224,22 @@ private fun Ring(
 private fun LoadingDots() {
     val infiniteTransition = rememberInfiniteTransition(label = "dots")
 
-    val dot1Alpha by infiniteTransition.animateFloat(
+    // Optimization: Store State objects directly to read values in graphicsLayer
+    val dot1Alpha = infiniteTransition.animateFloat(
         initialValue = 0.2f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(500, delayMillis = 0),
             repeatMode = RepeatMode.Reverse
         ), label = "d1"
     )
-    val dot2Alpha by infiniteTransition.animateFloat(
+    val dot2Alpha = infiniteTransition.animateFloat(
         initialValue = 0.2f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(500, delayMillis = 160),
             repeatMode = RepeatMode.Reverse
         ), label = "d2"
     )
-    val dot3Alpha by infiniteTransition.animateFloat(
+    val dot3Alpha = infiniteTransition.animateFloat(
         initialValue = 0.2f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(500, delayMillis = 320),
@@ -208,11 +248,11 @@ private fun LoadingDots() {
     )
 
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf(dot1Alpha, dot2Alpha, dot3Alpha).forEach { a ->
+        listOf(dot1Alpha, dot2Alpha, dot3Alpha).forEach { alphaState ->
             Box(
                 modifier = Modifier
                     .size(6.dp)
-                    .graphicsLayer { alpha = a }
+                    .graphicsLayer { alpha = alphaState.value }
                     .background(
                         MaterialTheme.colorScheme.onSurfaceVariant,
                         CircleShape

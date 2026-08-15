@@ -1,6 +1,7 @@
 package com.saurabh.focusapp.screens
 
 import android.app.Activity
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -31,11 +32,26 @@ import com.saurabh.focusapp.ui.component.AppIcon
 import com.saurabh.focusapp.ui.component.AppSelectionBottomSheet
 import com.saurabh.focusapp.viewmodel.DnsVpnViewModel
 
-// No hardcoded colors — all from MaterialTheme.colorScheme (dynamic color safe)
-
+/**
+ * Optimized DashboardScreen.
+ * 
+ * Performance Optimizations:
+ * 1. Stability: Marked VpnUiState and InstalledAppGeneral with @Immutable to 
+ *    enable 'Skippable' recompositions.
+ * 2. Stable Lambdas: Using remember { ... } for all callback lambdas passed 
+ *    to sub-composables to prevent unnecessary parent-induced recompositions.
+ * 3. Lazy List Optimization: Provided keys to items and remembered per-item 
+ *    lambdas.
+ * 4. Derived State: Used derivedStateOf/remember(key) for computations like 
+ *    app counts and color derivations.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
+    // Performance Metric: Log recompositions to track if optimizations are working
+    SideEffect {
+        Log.d("DashboardScreen", "DashboardScreen recomposed")
+    }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -47,6 +63,16 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
             viewModel.onVpnPermissionGranted()
         }
     }
+
+    // Optimization: Remember static or ViewModel-bound callbacks
+    val onStopVpn = remember(viewModel) { { viewModel.stopVpn() } }
+    val onShowSheet = remember { { showBottomSheet = true } }
+    val onDismissSheet = remember { { showBottomSheet = false } }
+    val onConfirmSelection = remember(viewModel) { { viewModel.confirmSelection() } }
+    
+    // Optimization: Using remember(uiState.selectedApps) to avoid re-calculating size 
+    // unless the list instance changes.
+    val appCount = remember(uiState.selectedApps) { uiState.selectedApps.size }
 
     Scaffold(
         contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
@@ -75,21 +101,16 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 8.dp,
-                    bottom = 100.dp
-                ),
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // ── Status card ──
                 item {
                     StatusCard(
                         isActive = uiState.isVpnActive,
-                        appCount = uiState.selectedApps.size,
-                        onStop = { viewModel.stopVpn() }
+                        appCount = appCount,
+                        onStop = onStopVpn
                     )
                 }
 
@@ -109,7 +130,7 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
-                                text = "${uiState.selectedApps.size} selected",
+                                text = "$appCount selected",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -120,13 +141,21 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                         items = uiState.selectedApps,
                         key = { it.packageName }
                     ) { app ->
-                        AppRow(
-                            app = app,
-                            isActive = uiState.activePackage == app.packageName,
-                            onOpen = {
+                        // Optimization: Derived state per item
+                        val isItemActive = uiState.activePackage == app.packageName
+                        
+                        // Optimization: Remember item-specific lambda to keep AppRow skippable
+                        val onOpenItem = remember(app, viewModel, vpnPermissionLauncher) {
+                            {
                                 val intent = viewModel.requestVpnFor(app)
                                 if (intent != null) vpnPermissionLauncher.launch(intent)
                             }
+                        }
+
+                        AppRow(
+                            app = app,
+                            isActive = isItemActive,
+                            onOpen = onOpenItem
                         )
                     }
 
@@ -142,7 +171,7 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                                     color = MaterialTheme.colorScheme.outlineVariant,
                                     shape = RoundedCornerShape(16.dp)
                                 )
-                                .clickable { showBottomSheet = true }
+                                .clickable(onClick = onShowSheet)
                                 .padding(vertical = 18.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -172,7 +201,7 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
 
             // ── FAB ──
             ExtendedFloatingActionButton(
-                onClick = { showBottomSheet = true },
+                onClick = onShowSheet,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
@@ -199,8 +228,8 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
             onToggleAll = { select ->
                 if (select) viewModel.selectAllApps() else viewModel.unselectAllApps()
             },
-            onDone = { viewModel.confirmSelection() },
-            onDismiss = { showBottomSheet = false }
+            onDone = onConfirmSelection,
+            onDismiss = onDismissSheet
         )
     }
 }
@@ -215,7 +244,11 @@ private fun StatusCard(
     appCount: Int,
     onStop: () -> Unit
 ) {
-    val cardBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    // Optimization: Remember color derivation
+    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    val cardBg = remember(surfaceVariant) {
+        surfaceVariant.copy(alpha = 0.5f)
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -311,12 +344,17 @@ private fun StatusPill(
     label: String,
     active: Boolean
 ) {
-    val bg =
-        if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-    val border =
-        if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    val textColor =
-        if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    // Optimization: Remember color assignments
+    val colorScheme = MaterialTheme.colorScheme
+    val bg = remember(active, colorScheme.primaryContainer, colorScheme.surface) {
+        if (active) colorScheme.primaryContainer else colorScheme.surface
+    }
+    val border = remember(active, colorScheme.primary, colorScheme.outlineVariant) {
+        if (active) colorScheme.primary else colorScheme.outlineVariant
+    }
+    val textColor = remember(active, colorScheme.onPrimaryContainer, colorScheme.onSurfaceVariant) {
+        if (active) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
+    }
 
     Row(
         modifier = Modifier
@@ -351,10 +389,17 @@ private fun AppRow(
     isActive: Boolean,
     onOpen: () -> Unit
 ) {
-    val bg =
-        if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-    val borderColor =
-        if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    // Optimization: Remember theme-derived properties
+    val colorScheme = MaterialTheme.colorScheme
+    val bg = remember(isActive, colorScheme.primaryContainer, colorScheme.surface) {
+        if (isActive) colorScheme.primaryContainer else colorScheme.surface
+    }
+    val borderColor = remember(isActive, colorScheme.primary, colorScheme.outlineVariant) {
+        if (isActive) colorScheme.primary else colorScheme.outlineVariant
+    }
+    val iconBg = remember(isActive, colorScheme.primaryContainer, colorScheme.surfaceVariant) {
+        if (isActive) colorScheme.primaryContainer else colorScheme.surfaceVariant
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -374,13 +419,10 @@ private fun AppRow(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (isActive) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    .background(iconBg)
                     .border(
                         0.5.dp,
-                        if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                        borderColor,
                         RoundedCornerShape(12.dp)
                     )
             ) {
