@@ -52,7 +52,10 @@ fun SettingsScreen(
             Surface(color = MaterialTheme.colorScheme.background) {
                 Text(
                     text = "Settings",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.3.sp
+                    ),
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
                 )
@@ -146,10 +149,7 @@ private fun SettingsSection(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(
-                letterSpacing = 1.sp,
-                fontWeight = FontWeight.Bold
-            ),
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 6.dp)
         )
@@ -306,9 +306,7 @@ private fun RowIcon(icon: ImageVector, accent: Boolean) {
             .background(if (accent) SettingsPalette.AccentSoft else MaterialTheme.colorScheme.surfaceVariant)
             .border(
                 1.dp,
-                if (accent) SettingsPalette.Accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(
-                    alpha = 0.6f
-                ),
+                if (accent) SettingsPalette.Accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                 RoundedCornerShape(12.dp)
             ),
         contentAlignment = Alignment.Center
