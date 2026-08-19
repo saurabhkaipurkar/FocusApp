@@ -1,30 +1,43 @@
 package com.saurabh.focusapp.screens
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.runtime.Composable
-import androidx.core.net.toUri
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import com.saurabh.focusapp.BuildConfig
+
+/**
+ * SettingsScreen — visual layer only.
+ * onThemeToggle, isDarkMode, and openUrl() targets/behavior unchanged.
+ */
+
+private object SettingsPalette {
+    val Accent = Color(0xFFE8A33D)
+    val AccentSoft = Color(0xFFFCE9C7)
+    val OnAccent = Color(0xFF241A05)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,20 +49,22 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Settings", style = MaterialTheme.typography.titleLarge) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Text(
+                    text = "Settings",
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
                 )
-            )
+            }
         }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
             // ── Appearance ──
@@ -74,33 +89,21 @@ fun SettingsScreen(
                         subtitle = "Focus — open source",
                         badge = "v${BuildConfig.VERSION_NAME}"
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 64.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
+                    RowDivider()
                     ActionRow(
                         icon = Icons.Outlined.PrivacyTip,
                         title = "Privacy policy",
                         subtitle = "How we handle your data",
                         onClick = { context.openUrl("https://saurabhkaipurkar.github.io/FocusApp/privacy.html") }
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 64.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
+                    RowDivider()
                     ActionRow(
                         icon = Icons.AutoMirrored.Outlined.Article,
                         title = "Terms of use",
                         subtitle = "Rules for using this app",
                         onClick = { context.openUrl("https://saurabhkaipurkar.github.io/FocusApp/terms.html") }
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 64.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
+                    RowDivider()
                     ActionRow(
                         icon = Icons.Outlined.Code,
                         title = "Source code",
@@ -127,28 +130,45 @@ fun SettingsScreen(
 }
 
 @Composable
+private fun RowDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 68.dp),
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    )
+}
+
+@Composable
 private fun SettingsSection(
     label: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+            style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.sp,
+                fontWeight = FontWeight.Bold
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+            modifier = Modifier.padding(start = 6.dp)
         )
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         ) {
             Column { content() }
         }
     }
 }
 
+/**
+ * Row.toggleable is the single tap source for the whole row; the Switch below
+ * is visual-only (onCheckedChange = null) to avoid the original double-toggle
+ * bug where both the row's clickable and the Switch's own callback fired.
+ */
 @Composable
 private fun ToggleRow(
     icon: ImageVector,
@@ -160,16 +180,19 @@ private fun ToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .toggleable(
+                value = checked,
+                onValueChange = onCheckedChange
+            )
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        RowIcon(icon)
+        RowIcon(icon, accent = checked)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
@@ -180,7 +203,15 @@ private fun ToggleRow(
                 )
             }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = SettingsPalette.OnAccent,
+                checkedTrackColor = SettingsPalette.Accent,
+                checkedBorderColor = SettingsPalette.Accent
+            )
+        )
     }
 }
 
@@ -197,13 +228,13 @@ private fun ActionRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        RowIcon(icon)
+        RowIcon(icon, accent = false)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
@@ -235,13 +266,13 @@ private fun InfoRow(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        RowIcon(icon)
+        RowIcon(icon, accent = false)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (subtitle != null) {
@@ -252,41 +283,41 @@ private fun InfoRow(
                 )
             }
         }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(
-                    0.5.dp,
-                    MaterialTheme.colorScheme.outlineVariant,
-                    RoundedCornerShape(999.dp)
-                )
-                .padding(horizontal = 10.dp, vertical = 4.dp)
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = SettingsPalette.AccentSoft
         ) {
             Text(
                 text = badge,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = SettingsPalette.OnAccent,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
             )
         }
     }
 }
 
 @Composable
-private fun RowIcon(icon: ImageVector) {
+private fun RowIcon(icon: ImageVector, accent: Boolean) {
     Box(
         modifier = Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+            .size(38.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (accent) SettingsPalette.AccentSoft else MaterialTheme.colorScheme.surfaceVariant)
+            .border(
+                1.dp,
+                if (accent) SettingsPalette.Accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(
+                    alpha = 0.6f
+                ),
+                RoundedCornerShape(12.dp)
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.onSurface
+            tint = if (accent) SettingsPalette.OnAccent else MaterialTheme.colorScheme.onSurface
         )
     }
 }

@@ -1,11 +1,13 @@
 package com.saurabh.focusapp.screens
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -14,6 +16,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -21,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.saurabh.focusapp.BuildConfig
 import com.saurabh.focusapp.data.db.AppUsageStats
 import com.saurabh.focusapp.data.db.UsageSession
 import com.saurabh.focusapp.ui.component.AppIcon
@@ -31,53 +36,51 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
 /**
- * Optimized AnalyticsScreen.
- * 
- * Performance Optimizations:
- * 1. Stability: Marked AnalyticsUiState, AppUsageStats, and UsageSession with 
- *    @Immutable to enable 'Skippable' recompositions for list items and cards.
- * 2. Derived State: Used remember(state.usageStats) for expensive calculations 
- *    like 'maxDuration' to avoid re-computing it inside the LazyColumn on 
- *    every scroll or minor state change.
- * 3. Component Optimization: Improved WeeklyChart by remembering chart 
- *    calculations (maxVal, todayIndex).
- * 4. Efficient Formatting: Shared formatters and remembered formatted strings 
- *    where applicable.
+ * AnalyticsScreen — visual layer only.
+ * All ViewModel reads (state.totalTodayMs, sessionCountToday, avgSessionMs,
+ * weeklyData, topApp, recentSessions, usageStats) and derived values
+ * (maxDuration) are unchanged.
  */
+
+private object AnalyticsPalette {
+    val Accent = Color(0xFFE8A33D)
+    val AccentSoft = Color(0xFFFCE9C7)
+    val OnAccent = Color(0xFF241A05)
+    val InkSurface = Color(0xFF14161A)
+    val InkSurfaceAlt = Color(0xFF1D2026)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
     analyticsViewModel: AnalyticsViewModel = hiltViewModel()
 ) {
-    // Performance Metric: Log recompositions
-    SideEffect {
-        Log.d("AnalyticsScreen", "AnalyticsScreen recomposed")
+    if (BuildConfig.DEBUG) {
+        SideEffect { Log.d("AnalyticsScreen", "AnalyticsScreen recomposed") }
     }
 
     val state by analyticsViewModel.uiState.collectAsStateWithLifecycle()
 
-    // Optimization: Calculate maxDuration once per state change
     val maxDuration = remember(state.usageStats) {
         state.usageStats.maxOfOrNull { it.totalDuration } ?: 1L
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Analytics", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "Focus session insights",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
+            Surface(color = MaterialTheme.colorScheme.background) {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                    Text(
+                        "Analytics",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        "Focus session insights",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -87,9 +90,9 @@ fun AnalyticsScreen(
             contentPadding = PaddingValues(bottom = 40.dp)
         ) {
 
-            // ── Summary strip ──
+            // ── Summary hero ──
             item {
-                SummaryStrip(
+                SummaryHero(
                     totalMs = state.totalTodayMs,
                     sessionCount = state.sessionCountToday,
                     avgMs = state.avgSessionMs
@@ -135,55 +138,68 @@ fun AnalyticsScreen(
 }
 
 // ══════════════════════════════════════════════════════
-// SUMMARY STRIP
+// SUMMARY HERO — dark gradient card, three metrics
 // ══════════════════════════════════════════════════════
 
 @Composable
-private fun SummaryStrip(totalMs: Long, sessionCount: Int, avgMs: Long) {
-    // Optimization: Remember formatted values to avoid string generation on every recomposition
+private fun SummaryHero(totalMs: Long, sessionCount: Int, avgMs: Long) {
     val totalFormatted = remember(totalMs) { totalMs.toReadable() }
     val avgFormatted = remember(avgMs) { avgMs.toReadable() }
-    val sessionCountText = remember(sessionCount) { "$sessionCount" }
 
-    Row(
+    val bgBrush = remember {
+        Brush.linearGradient(
+            listOf(
+                AnalyticsPalette.InkSurface,
+                AnalyticsPalette.InkSurfaceAlt
+            )
+        )
+    }
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.Transparent
     ) {
-        StatBox("Total today", totalFormatted, Modifier.weight(1f))
-        StatBox("Sessions", sessionCountText, Modifier.weight(1f))
-        StatBox("Avg session", avgFormatted, Modifier.weight(1f))
+        Box(modifier = Modifier
+            .background(bgBrush)
+            .padding(20.dp)) {
+            Column {
+                Text(
+                    text = "Today",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.45f),
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = totalFormatted,
+                    style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = Color.White
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    MiniMetric(label = "Sessions", value = "$sessionCount")
+                    MiniMetric(label = "Avg session", value = avgFormatted)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun StatBox(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            0.5.dp,
-            MaterialTheme.colorScheme.outlineVariant
+private fun MiniMetric(label: String, value: String) {
+    Column {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = AnalyticsPalette.Accent
         )
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.45f)
+        )
     }
 }
 
@@ -193,40 +209,54 @@ private fun StatBox(label: String, value: String, modifier: Modifier = Modifier)
 
 @Composable
 private fun WeeklyChart(weekData: List<Long>) {
-    // Optimization: Remember static list and calculations
     val days = remember { listOf("M", "T", "W", "T", "F", "S", "S") }
     val maxVal = remember(weekData) { max(weekData.maxOrNull() ?: 1L, 1L) }
-    val todayIndex = remember { (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7 }
+    val todayIndex =
+        remember { (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - Calendar.MONDAY + 7) % 7 }
     val peakFormatted = remember(maxVal) { maxVal.toReadable() }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            0.5.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        )
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    .height(90.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
                 weekData.forEachIndexed { index, ms ->
                     val fraction = if (maxVal > 0) ms.toFloat() / maxVal else 0f
                     val isToday = index == todayIndex
                     val isPeak = ms == maxVal && ms > 0
-                    
-                    // Optimization: Pre-calculating color to avoid complex when {} in Draw phase
-                    val barColor = when {
-                        isToday || isPeak -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+
+                    val barBrush = when {
+                        isPeak -> Brush.verticalGradient(
+                            listOf(
+                                AnalyticsPalette.Accent,
+                                AnalyticsPalette.Accent.copy(alpha = 0.7f)
+                            )
+                        )
+
+                        isToday -> Brush.verticalGradient(
+                            listOf(
+                                AnalyticsPalette.Accent.copy(alpha = 0.55f),
+                                AnalyticsPalette.Accent.copy(alpha = 0.35f)
+                            )
+                        )
+
+                        else -> Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                            )
+                        )
                     }
 
                     Column(
@@ -237,37 +267,45 @@ private fun WeeklyChart(weekData: List<Long>) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .fillMaxHeight(fraction.coerceAtLeast(0.04f))
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(barColor)
+                                .fillMaxHeight(fraction.coerceAtLeast(0.05f))
+                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                .background(barBrush)
                         )
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 days.forEachIndexed { index, day ->
                     val isToday = index == todayIndex
-                    Text(
-                        text = day,
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
-                        ),
-                        color = if (isToday)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(CircleShape)
+                            .background(if (isToday) AnalyticsPalette.AccentSoft else Color.Transparent),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = day,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            color = if (isToday) AnalyticsPalette.OnAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -278,9 +316,9 @@ private fun WeeklyChart(weekData: List<Long>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Peak: $peakFormatted",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "Peak · $peakFormatted",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = AnalyticsPalette.Accent
                 )
             }
         }
@@ -298,24 +336,28 @@ private fun TopAppCard(stat: AppUsageStats) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary)
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = AnalyticsPalette.AccentSoft.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, AnalyticsPalette.Accent.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(13.dp))
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(15.dp))
                     .background(MaterialTheme.colorScheme.surface)
-                    .border(0.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(13.dp))
+                    .border(
+                        1.dp,
+                        AnalyticsPalette.Accent.copy(alpha = 0.6f),
+                        RoundedCornerShape(15.dp)
+                    )
             ) {
                 AppIcon(
                     packageName = stat.packageName,
@@ -324,23 +366,32 @@ private fun TopAppCard(stat: AppUsageStats) {
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.EmojiEvents,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = AnalyticsPalette.OnAccent
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "Top focus app",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AnalyticsPalette.OnAccent.copy(alpha = 0.7f)
+                    )
+                }
                 Text(
                     text = stat.appName,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = AnalyticsPalette.OnAccent,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "Total focus time",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                 )
             }
             Text(
                 text = durationFormatted,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onPrimaryContainer
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = AnalyticsPalette.OnAccent
             )
         }
     }
@@ -358,13 +409,10 @@ private fun RecentSessionRow(session: UsageSession) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(14.dp),
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            0.5.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        )
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier
@@ -375,14 +423,9 @@ private fun RecentSessionRow(session: UsageSession) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(11.dp))
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outlineVariant,
-                        RoundedCornerShape(11.dp)
-                    )
             ) {
                 AppIcon(
                     packageName = session.packageName,
@@ -393,28 +436,35 @@ private fun RecentSessionRow(session: UsageSession) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = session.appName,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Text(
-                    text = timeAgoFormatted,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(11.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = timeAgoFormatted,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-            // Duration badge
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = AnalyticsPalette.AccentSoft
             ) {
                 Text(
                     text = durationFormatted,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = AnalyticsPalette.OnAccent,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 )
             }
         }
@@ -427,22 +477,18 @@ private fun RecentSessionRow(session: UsageSession) {
 
 @Composable
 private fun AppStatRow(stat: AppUsageStats, maxDuration: Long) {
-    // Optimization: Calculate fraction once per recomposition
-    val fraction = remember(stat.totalDuration, maxDuration) { 
-        if (maxDuration > 0) stat.totalDuration.toFloat() / maxDuration else 0f 
+    val fraction = remember(stat.totalDuration, maxDuration) {
+        if (maxDuration > 0) stat.totalDuration.toFloat() / maxDuration else 0f
     }
     val durationFormatted = remember(stat.totalDuration) { stat.totalDuration.toReadable() }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(14.dp),
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            0.5.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        )
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier
@@ -453,14 +499,9 @@ private fun AppStatRow(stat: AppUsageStats, maxDuration: Long) {
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(11.dp))
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outlineVariant,
-                        RoundedCornerShape(11.dp)
-                    )
             ) {
                 AppIcon(
                     packageName = stat.packageName,
@@ -474,29 +515,29 @@ private fun AppStatRow(stat: AppUsageStats, maxDuration: Long) {
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(7.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(fraction)
+                            .fillMaxWidth(fraction.coerceAtLeast(0.02f))
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(AnalyticsPalette.Accent)
                     )
                 }
             }
             Text(
                 text = durationFormatted,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground
             )
         }
     }
@@ -511,20 +552,28 @@ private fun EmptyAnalytics() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 64.dp, horizontal = 32.dp),
+            .padding(vertical = 72.dp, horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.BarChart,
-            contentDescription = null,
-            modifier = Modifier.size(36.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.BarChart,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
             "No data yet",
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
@@ -541,9 +590,12 @@ private fun EmptyAnalytics() {
 private fun SectionHeader(label: String) {
     Text(
         text = label.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.8.sp),
+        style = MaterialTheme.typography.labelSmall.copy(
+            letterSpacing = 1.sp,
+            fontWeight = FontWeight.Bold
+        ),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 8.dp)
+        modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 10.dp)
     )
 }
 

@@ -12,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -26,24 +28,21 @@ import kotlin.time.Duration.Companion.milliseconds
 import com.saurabh.focusapp.R
 
 /**
- * Optimized SplashScreen.
- * 
- * Performance Optimizations:
- * 1. Deferring Recomposition: Animation values (.value) are now read inside 
- *    Modifier.graphicsLayer { ... } lambdas. This moves the animation logic 
- *    to the 'Draw' phase, avoiding expensive 'Recomposition' and 'Layout' 
- *    cycles for the entire screen on every frame.
- * 2. Deferred State Reading: Sub-composables (Ring, LoadingDots) now receive 
- *    lambdas or State objects instead of raw values, ensuring parent 
- *    composables don't recompose when children animate.
- * 3. Modifier.graphicsLayer vs Modifier.scale: Replaced Modifier.scale with 
- *    graphicsLayer { scaleX/Y = ... } to avoid triggering layout passes 
- *    during scaling animations.
+ * SplashScreen — visual layer only.
+ * Animation sequencing, timings, spring/tween specs, and the exact moment
+ * onSplashFinished() fires are all unchanged. Only ring/icon/dot styling
+ * and color sourcing were reworked.
  */
+
+private object SplashPalette {
+    val Accent = Color(0xFFE8A33D)
+    val InkSurface = Color(0xFF14161A)
+    val InkSurfaceAlt = Color(0xFF1D2026)
+}
+
 @Composable
 fun SplashScreen(onSplashFinished: () -> Unit) {
 
-    // ── Animation states ──
     val iconScale = remember { Animatable(0.6f) }
     val contentAlpha = remember { Animatable(0f) }
     val ring1Alpha = remember { Animatable(0f) }
@@ -55,9 +54,8 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
 
     LaunchedEffect(Unit) {
         val startTime = System.currentTimeMillis()
-        Log.d("SplashScreen", "Animation started")
+        if (BuildConfig.DEBUG) Log.d("SplashScreen", "Animation started")
 
-        // Start intro animations in parallel
         launch {
             iconScale.animateTo(
                 1f,
@@ -71,7 +69,6 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             contentAlpha.animateTo(1f, animationSpec = tween(400))
         }
 
-        // Rings expand outward in sequence
         launch {
             ring1Alpha.animateTo(0.7f, animationSpec = tween(400))
             ring1Scale.animateTo(1f, animationSpec = tween(500, easing = EaseOut))
@@ -89,13 +86,16 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             ring3Scale.animateTo(1f, animationSpec = tween(500, easing = EaseOut))
         }
 
-        // Wait until approximately 1.2s total before starting final fade
         delay(1000.milliseconds)
 
-        // Fade everything out (duration: 300ms)
         contentAlpha.animateTo(0f, animationSpec = tween(300))
-        
-        Log.d("SplashScreen", "Animation finished in ${System.currentTimeMillis() - startTime}ms")
+
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "SplashScreen",
+                "Animation finished in ${System.currentTimeMillis() - startTime}ms"
+            )
+        }
         onSplashFinished()
     }
 
@@ -106,8 +106,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
 
-        // ── Concentric rings ──
-        // Optimization: Passing lambdas to defer value reading
+        // ── Concentric rings — amber-tinted instead of flat gray ──
         Ring(
             size = 360.dp,
             alphaProvider = { ring3Alpha.value },
@@ -126,39 +125,41 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
 
         // ── Center content ──
         Column(
-            // Optimization: graphicsLayer lambda avoids recomposing the whole Column
             modifier = Modifier.graphicsLayer { alpha = contentAlpha.value },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
 
-            // ── Icon box ──
+            // ── Icon box — dark gradient tile instead of flat surfaceVariant ──
             Box(
                 modifier = Modifier
                     .graphicsLayer {
                         scaleX = iconScale.value
                         scaleY = iconScale.value
                     }
-                    .size(80.dp)
+                    .size(88.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(22.dp)
+                        brush = Brush.linearGradient(
+                            listOf(SplashPalette.InkSurface, SplashPalette.InkSurfaceAlt)
+                        ),
+                        shape = RoundedCornerShape(26.dp)
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.app_logo),
-                    contentDescription = null
+                    contentDescription = null,
+                    modifier = Modifier.size(44.dp)
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(22.dp))
 
             // ── App name ──
             Text(
                 text = "Focus",
                 style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.5).sp
                 ),
                 color = MaterialTheme.colorScheme.onBackground,
@@ -171,8 +172,9 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             Text(
                 text = "Stay in the zone",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = SplashPalette.Accent,
                 letterSpacing = 0.3.sp,
+                fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center
             )
 
@@ -196,7 +198,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
     }
 }
 
-// ── Concentric ring ──
+// ── Concentric ring — subtle amber outline instead of neutral outlineVariant ──
 @Composable
 private fun Ring(
     size: Dp,
@@ -206,25 +208,24 @@ private fun Ring(
     Box(
         modifier = Modifier
             .size(size)
-            .graphicsLayer { 
+            .graphicsLayer {
                 alpha = alphaProvider()
                 scaleX = scaleProvider()
                 scaleY = scaleProvider()
             }
             .border(
-                width = 0.5.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
+                width = 1.dp,
+                color = SplashPalette.Accent.copy(alpha = 0.25f),
                 shape = CircleShape
             )
     )
 }
 
-// ── Animated 3-dot loader ──
+// ── Animated 3-dot loader — amber dots instead of neutral gray ──
 @Composable
 private fun LoadingDots() {
     val infiniteTransition = rememberInfiniteTransition(label = "dots")
 
-    // Optimization: Store State objects directly to read values in graphicsLayer
     val dot1Alpha = infiniteTransition.animateFloat(
         initialValue = 0.2f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -247,14 +248,14 @@ private fun LoadingDots() {
         ), label = "d3"
     )
 
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         listOf(dot1Alpha, dot2Alpha, dot3Alpha).forEach { alphaState ->
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(7.dp)
                     .graphicsLayer { alpha = alphaState.value }
                     .background(
-                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        SplashPalette.Accent,
                         CircleShape
                     )
             )

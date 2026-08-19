@@ -4,6 +4,7 @@ import android.app.Activity
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,37 +21,43 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.saurabh.focusapp.BuildConfig
 import com.saurabh.focusapp.model.InstalledAppGeneral
 import com.saurabh.focusapp.ui.component.AppIcon
 import com.saurabh.focusapp.ui.component.AppSelectionBottomSheet
 import com.saurabh.focusapp.viewmodel.DnsVpnViewModel
 
 /**
- * Optimized DashboardScreen.
- * 
- * Performance Optimizations:
- * 1. Stability: Marked VpnUiState and InstalledAppGeneral with @Immutable to 
- *    enable 'Skippable' recompositions.
- * 2. Stable Lambdas: Using remember { ... } for all callback lambdas passed 
- *    to sub-composables to prevent unnecessary parent-induced recompositions.
- * 3. Lazy List Optimization: Provided keys to items and remembered per-item 
- *    lambdas.
- * 4. Derived State: Used derivedStateOf/remember(key) for computations like 
- *    app counts and color derivations.
+ * DashboardScreen — visual layer only.
+ * All ViewModel calls, state reads, callback wiring, and navigation are
+ * unchanged from the original implementation. Only composable structure,
+ * styling, and layout have been reworked.
  */
+
+// ══════════════════════════════════════════════════════
+// DESIGN TOKENS — accent palette (slate + amber signal color)
+// ══════════════════════════════════════════════════════
+private object Palette {
+    val Accent = Color(0xFFE8A33D)       // warm amber — primary action / active signal
+    val AccentSoft = Color(0xFFFCE9C7)
+    val InkSurface = Color(0xFF14161A)   // near-black card surface
+    val InkSurfaceAlt = Color(0xFF1D2026)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
-    // Performance Metric: Log recompositions to track if optimizations are working
-    SideEffect {
-        Log.d("DashboardScreen", "DashboardScreen recomposed")
+    if (BuildConfig.DEBUG) {
+        SideEffect { Log.d("DashboardScreen", "DashboardScreen recomposed") }
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -64,87 +71,47 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
         }
     }
 
-    // Optimization: Remember static or ViewModel-bound callbacks
     val onStopVpn = remember(viewModel) { { viewModel.stopVpn() } }
     val onShowSheet = remember { { showBottomSheet = true } }
     val onDismissSheet = remember { { showBottomSheet = false } }
     val onConfirmSelection = remember(viewModel) { { viewModel.confirmSelection() } }
-    
-    // Optimization: Using remember(uiState.selectedApps) to avoid re-calculating size 
-    // unless the list instance changes.
     val appCount = remember(uiState.selectedApps) { uiState.selectedApps.size }
 
     Scaffold(
-        contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Focus",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Text(
-                            text = "Distraction-free browsing",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
+        topBar = { DashboardTopBar(isActive = uiState.isVpnActive) }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // ── Status card ──
+                item { Spacer(Modifier.height(4.dp)) }
+
                 item {
-                    StatusCard(
+                    HeroStatusCard(
                         isActive = uiState.isVpnActive,
                         appCount = appCount,
                         onStop = onStopVpn
                     )
                 }
 
-                // ── Section header ──
                 if (uiState.selectedApps.isNotEmpty()) {
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp, bottom = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Focused apps",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Text(
-                                text = "$appCount selected",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        SectionHeader(
+                            title = "Focused apps",
+                            trailing = "$appCount selected"
+                        )
                     }
 
                     items(
                         items = uiState.selectedApps,
                         key = { it.packageName }
                     ) { app ->
-                        // Optimization: Derived state per item
                         val isItemActive = uiState.activePackage == app.packageName
-                        
-                        // Optimization: Remember item-specific lambda to keep AppRow skippable
+
                         val onOpenItem = remember(app, viewModel, vpnPermissionLauncher) {
                             {
                                 val intent = viewModel.requestVpnFor(app)
@@ -159,55 +126,25 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                         )
                     }
 
-                    // ── Add more tap area ──
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .border(
-                                    width = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant,
-                                    shape = RoundedCornerShape(16.dp)
-                                )
-                                .clickable(onClick = onShowSheet)
-                                .padding(vertical = 18.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Add more apps",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        AddMoreCard(onClick = onShowSheet)
                     }
 
+                    item { Spacer(Modifier.height(88.dp)) }
                 } else {
                     item { EmptyState() }
                 }
             }
 
-            // ── FAB ──
             ExtendedFloatingActionButton(
                 onClick = onShowSheet,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.onBackground,
-                contentColor = MaterialTheme.colorScheme.background,
-                shape = RoundedCornerShape(16.dp),
+                    .padding(20.dp)
+                    .shadow(elevation = 10.dp, shape = RoundedCornerShape(18.dp), clip = false),
+                containerColor = Palette.Accent,
+                contentColor = Color(0xFF241A05),
+                shape = RoundedCornerShape(18.dp),
                 icon = {
                     Icon(
                         imageVector = Icons.Outlined.Add,
@@ -215,7 +152,7 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
                         modifier = Modifier.size(20.dp)
                     )
                 },
-                text = { Text("Add apps", fontSize = 14.sp) }
+                text = { Text("Add apps", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
             )
         }
     }
@@ -235,147 +172,197 @@ fun DashboardScreen(viewModel: DnsVpnViewModel = hiltViewModel()) {
 }
 
 // ══════════════════════════════════════════════════════
-// STATUS CARD
+// TOP BAR
+// ══════════════════════════════════════════════════════
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DashboardTopBar(isActive: Boolean) {
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    Text(
+                        text = "Focus",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Distraction-free browsing",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // live status dot, purely visual, driven by existing isActive state
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(if (isActive) Palette.Accent else MaterialTheme.colorScheme.outlineVariant)
+                )
+            }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════
+// HERO STATUS CARD
 // ══════════════════════════════════════════════════════
 
 @Composable
-private fun StatusCard(
+private fun HeroStatusCard(
     isActive: Boolean,
     appCount: Int,
     onStop: () -> Unit
 ) {
-    // Optimization: Remember color derivation
-    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
-    val cardBg = remember(surfaceVariant) {
-        surfaceVariant.copy(alpha = 0.5f)
+    val bgBrush = remember(isActive) {
+        if (isActive) {
+            Brush.linearGradient(listOf(Palette.InkSurface, Palette.InkSurfaceAlt))
+        } else {
+            Brush.linearGradient(listOf(Palette.InkSurfaceAlt, Palette.InkSurface))
+        }
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = cardBg,
-        tonalElevation = 0.dp
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = RoundedCornerShape(28.dp), clip = false),
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Transparent
     ) {
-        Column(modifier = Modifier.padding(18.dp)) {
+        Box(
+            modifier = Modifier
+                .background(bgBrush)
+                .padding(22.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (isActive) Palette.Accent.copy(alpha = 0.16f) else Color.White.copy(
+                                    alpha = 0.06f
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isActive) Icons.Outlined.Security else Icons.Outlined.SecurityUpdateWarning,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = if (isActive) Palette.Accent else Color.White.copy(alpha = 0.55f)
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text(
+                            text = if (isActive) "Focus mode active" else "Focus mode off",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (isActive) "Selected apps route through a filtered DNS/VPN" else "Turn on to start blocking distractions",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.55f)
+                        )
+                    }
+                }
 
-            // ── Icon + status ──
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Box(
+                Spacer(Modifier.height(18.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    StatMetric(
+                        label = "Status",
+                        value = if (isActive) "On" else "Off",
+                        accent = isActive
+                    )
+                    StatMetric(label = "Apps", value = "$appCount", accent = false)
+                }
+
+                Spacer(Modifier.height(18.dp))
+
+                Button(
+                    onClick = onStop,
+                    enabled = isActive,
                     modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(
-                            0.5.dp,
-                            MaterialTheme.colorScheme.outlineVariant,
-                            RoundedCornerShape(14.dp)
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.10f),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color.White.copy(alpha = 0.04f),
+                        disabledContentColor = Color.White.copy(alpha = 0.25f)
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(0.dp)
                 ) {
                     Icon(
-                        imageVector = if (isActive) Icons.Outlined.Security else Icons.Outlined.SecurityUpdateWarning,
+                        imageVector = Icons.Outlined.StopCircle,
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        modifier = Modifier.size(17.dp)
                     )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Stop service", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Column {
-                    Text(
-                        text = "Focus status",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 0.5.sp
-                    )
-                    Text(
-                        text = if (isActive) "Active" else "Inactive",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            // ── Pills ──
-            Row(
-                modifier = Modifier.padding(top = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                StatusPill(
-                    icon = if (isActive) Icons.Outlined.WifiOff else Icons.Outlined.Wifi,
-                    label = if (isActive) "Focus mode on" else "Focus mode off",
-                    active = isActive
-                )
-                StatusPill(
-                    icon = Icons.Outlined.Apps,
-                    label = "$appCount app${if (appCount != 1) "s" else ""}",
-                    active = false
-                )
-            }
-
-            // ── Stop button ──
-            OutlinedButton(
-                onClick = onStop,
-                enabled = isActive,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.StopCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Stop service", fontSize = 14.sp)
             }
         }
     }
 }
 
 @Composable
-private fun StatusPill(
-    icon: ImageVector,
-    label: String,
-    active: Boolean
-) {
-    // Optimization: Remember color assignments
-    val colorScheme = MaterialTheme.colorScheme
-    val bg = remember(active, colorScheme.primaryContainer, colorScheme.surface) {
-        if (active) colorScheme.primaryContainer else colorScheme.surface
+private fun StatMetric(label: String, value: String, accent: Boolean) {
+    Column {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White.copy(alpha = 0.4f),
+            letterSpacing = 1.sp
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = if (accent) Palette.Accent else Color.White
+        )
     }
-    val border = remember(active, colorScheme.primary, colorScheme.outlineVariant) {
-        if (active) colorScheme.primary else colorScheme.outlineVariant
-    }
-    val textColor = remember(active, colorScheme.onPrimaryContainer, colorScheme.onSurfaceVariant) {
-        if (active) colorScheme.onPrimaryContainer else colorScheme.onSurfaceVariant
-    }
+}
 
+// ══════════════════════════════════════════════════════
+// SECTION HEADER
+// ══════════════════════════════════════════════════════
+
+@Composable
+private fun SectionHeader(title: String, trailing: String) {
     Row(
         modifier = Modifier
-            .clip(CircleShape)
-            .background(bg)
-            .border(0.5.dp, border, CircleShape)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(13.dp),
-            tint = textColor
-        )
         Text(
-            text = label,
-            fontSize = 12.sp,
-            color = textColor
+            text = title,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground
         )
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Text(
+                text = trailing,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
     }
 }
 
@@ -389,41 +376,38 @@ private fun AppRow(
     isActive: Boolean,
     onOpen: () -> Unit
 ) {
-    // Optimization: Remember theme-derived properties
     val colorScheme = MaterialTheme.colorScheme
-    val bg = remember(isActive, colorScheme.primaryContainer, colorScheme.surface) {
-        if (isActive) colorScheme.primaryContainer else colorScheme.surface
-    }
-    val borderColor = remember(isActive, colorScheme.primary, colorScheme.outlineVariant) {
-        if (isActive) colorScheme.primary else colorScheme.outlineVariant
-    }
-    val iconBg = remember(isActive, colorScheme.primaryContainer, colorScheme.surfaceVariant) {
-        if (isActive) colorScheme.primaryContainer else colorScheme.surfaceVariant
-    }
+    val elevation by animateDpAsState(if (isActive) 3.dp else 0.dp, label = "rowElevation")
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = bg,
-        border = BorderStroke(0.5.dp, borderColor)
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = elevation, shape = RoundedCornerShape(20.dp), clip = false),
+        shape = RoundedCornerShape(20.dp),
+        color = if (isActive) Palette.AccentSoft.copy(alpha = 0.4f) else colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (isActive) Palette.Accent.copy(alpha = 0.5f) else colorScheme.outlineVariant.copy(
+                alpha = 0.6f
+            )
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // App icon
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(iconBg)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colorScheme.surfaceVariant)
                     .border(
-                        0.5.dp,
-                        borderColor,
-                        RoundedCornerShape(12.dp)
+                        1.dp,
+                        colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        RoundedCornerShape(14.dp)
                     )
             ) {
                 AppIcon(
@@ -433,46 +417,76 @@ private fun AppRow(
                 )
             }
 
-            // Name + package
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = app.appName,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = colorScheme.onBackground
                 )
                 Text(
-                    text = if (isActive) "Tap Open to launch in focus mode" else app.packageName,
+                    text = if (isActive) "Running in focus mode" else app.packageName,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isActive) Palette.Accent else colorScheme.onSurfaceVariant
                 )
             }
 
-            // Open button
-            OutlinedButton(
+            Surface(
                 onClick = onOpen,
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 7.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                border = BorderStroke(
-                    0.5.dp,
-                    MaterialTheme.colorScheme.outline
-                )
+                shape = CircleShape,
+                color = if (isActive) Palette.Accent else colorScheme.surfaceVariant,
+                modifier = Modifier.size(38.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text("Open", fontSize = 13.sp)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Outlined.PlayArrow,
+                        contentDescription = "Open",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (isActive) Color(0xFF241A05) else colorScheme.onSurfaceVariant
+                    )
+                }
             }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════
+// ADD MORE CARD
+// ══════════════════════════════════════════════════════
+
+@Composable
+private fun AddMoreCard(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = Palette.Accent
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Add more apps",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = Palette.Accent
+            )
         }
     }
 }
@@ -486,24 +500,32 @@ private fun EmptyState() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 48.dp),
+            .padding(top = 64.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Shield,
-            contentDescription = null,
-            modifier = Modifier.size(36.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Shield,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         Text(
             text = "No apps selected",
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "Tap \"Add apps\" to get started",
+            text = "Tap \"Add apps\" below to get started",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
